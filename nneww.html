@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Video Surveillance System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+</head>
+<body>
+    <div>Intelligent Video Surveillance System</div>
+    <button type="button" onclick="init()">Start</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <audio id="alarm-sound" src="C:\Users\yvishwakreddy\Desktop\sound fire.mp3"></audio>
+    <script type="text/javascript">
+        const URL = "https://teachablemachine.withgoogle.com/models/ziEZwUFmj/";
+        let model, webcam, labelContainer, maxPredictions;
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(200, 200, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) { 
+                labelContainer.appendChild(document.createElement("div"));
+            }
+
+            // Initialize EmailJS
+            emailjs.init("your_emailjs_user_id");
+        }
+
+        async function loop() {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            let suspiciousActivityDetected = false;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+
+                if ((prediction[i].className === "fire detected" || 
+                     prediction[i].className === "weapon detected" ||
+                     prediction[i].className === "fight detected" ||
+                     prediction[i].className === "mask detected") && 
+                     prediction[i].probability > 0.9) {
+                    suspiciousActivityDetected = true;
+                }
+            }
+
+            if (suspiciousActivityDetected) {
+                playAlarm();
+                sendEmail();
+            }
+        }
+
+        function playAlarm() {
+            const alarmSound = document.getElementById("alarm-sound");
+            alarmSound.play();
+        }
+
+        function sendEmail() {
+            const templateParams = {
+                to_name: 'Recipient Name',
+                from_name: 'Your Name',
+                message: 'Suspicious activity has been detected.',
+                reply_to: 'your_email@example.com'
+            };
+
+            emailjs.send('your_service_id', 'your_template_id', templateParams)
+                .then((response) => {
+                    console.log('Email sent successfully!', response.status, response.text);
+                }, (error) => {
+                    console.error('Failed to send email:', error);
+                });
+        }
+    </script>
+</body>
+</html>
